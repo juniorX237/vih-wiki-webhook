@@ -2,23 +2,45 @@ const fetch = require('node-fetch');
 const HF_TOKEN = process.env.HF_TOKEN;
 
 async function getHuggingFaceResponse(prompt) {
-  const response = await fetch(
-    'https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta', // Tu peux changer de modèle plus tard
-    {
+  try {
+    const API_URL = 'https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta';
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${HF_TOKEN}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ inputs: prompt })
+      body: JSON.stringify({ inputs: prompt }),
+      timeout: 10000 // 10 secondes max
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        `Hugging Face API Error: ${response.status} ${response.statusText}\n` +
+        `Details: ${JSON.stringify(errorData)}`
+      );
     }
-  );
-  if (!response.ok) throw new Error('Problème avec Hugging Face');
-  const data = await response.json();
-  // Adaptation selon le modèle choisi
-  if (Array.isArray(data) && data[0].generated_text) return data[0].generated_text;
-  if (data.generated_text) return data.generated_text;
-  return JSON.stringify(data);
+
+    const data = await response.json();
+    
+    // Gestion des différents formats de réponse
+    if (Array.isArray(data) && data[0]?.generated_text) {
+      return data[0].generated_text;
+    }
+    if (data.generated_text) {
+      return data.generated_text;
+    }
+    if (data.error) {
+      throw new Error(`Model loading: ${data.error}`);
+    }
+    
+    return JSON.stringify(data);
+  } catch (error) {
+    console.error('Erreur détaillée:', error.message);
+    throw error; // Propage l'erreur pour un logging complet
+  }
 }
 
+module.exports = { getHuggingFaceResponse };
 module.exports = { getHuggingFaceResponse };
