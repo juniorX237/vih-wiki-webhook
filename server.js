@@ -4,122 +4,86 @@ const app = express();
 
 app.use(express.json());
 
-// Amélioration 1 : Cache simple pour éviter les requêtes répétées
-const responseCache = new Map();
+// Dictionnaire de réponses de secours
+const VIH_KNOWLEDGE = {
+  'symptômes': 'Principaux symptômes du VIH : fièvre, fatigue, gonflement des ganglions. Mais beaucoup de personnes n\'ont aucun symptôme au début.',
+  'traitement': 'Les traitements antirétroviraux (ARV) permettent de vivre normalement avec le VIH et de ne plus transmettre le virus si la charge virale est indétectable.',
+  'transmission': 'Le VIH se transmet par : relations sexuelles non protégées, sang contaminé, mère-enfant pendant la grossesse ou l\'allaitement.',
+  'dépistage': 'Le test de dépistage est simple (prise de sang ou test rapide). En cas de risque, faites un test immédiatement et à 6 semaines.',
+  'prévention': 'Moyens de prévention : préservatifs, PrEP (traitement préventif), matériel stérile pour injections, dépistage régulier.'
+};
 
-// Amélioration 2 : Liste de mots-clés VIH pour le filtrage
-const VIH_KEYWORDS = ['vih', 'sida', 'virus immunodéficience', 'arv', 'prép', 'tarv'];
-
-// Route principale
-app.get('/', (req, res) => {
-  res.send('Service webhook pour le chatbot VIH');
-});
-
-// Route du webhook
 app.post('/webhook', async (req, res) => {
-  const question = req.body.queryResult?.queryText?.toLowerCase();
-
-  if (!question) {
-    return sendError(res, "Je n'ai pas compris votre question. Pouvez-vous reformuler ?");
-  }
-
-  // Amélioration 3 : Vérification du sujet VIH
-  if (!VIH_KEYWORDS.some(keyword => question.includes(keyword))) {
-    return sendError(res, "Je ne réponds qu'aux questions sur le VIH/sida. Voici quelques sujets que je peux aborder : symptômes, traitement, prévention...");
-  }
-
-  // Amélioration 4 : Utilisation du cache
-  const cachedResponse = responseCache.get(question);
-  if (cachedResponse) {
-    return res.json(cachedResponse);
+  const question = req.body.queryResult?.queryText?.toLowerCase() || '';
+  
+  // Vérification que la question concerne bien le VIH
+  if (!question.includes('vih') && !question.includes('sida')) {
+    return res.json({
+      fulfillmentText: "❌ Je ne réponds qu'aux questions sur le VIH/sida. Posez-moi une question comme : 'Quels sont les symptômes du VIH ?' ou 'Comment se transmet le sida ?'"
+    });
   }
 
   try {
-    // Amélioration 5 : Recherche plus précise
+    // 1. Essayer d'abord avec nos réponses contrôlées
+    for (const [keyword, response] of Object.entries(VIH_KNOWLEDGE)) {
+      if (question.includes(keyword)) {
+        return res.json({
+          fulfillmentText: `📌 ${response}`
+        });
+      }
+    }
+
+    // 2. Si pas de réponse prévue, chercher sur Wikipédia
     const searchResponse = await axios.get('https://fr.wikipedia.org/w/api.php', {
       params: {
         action: 'query',
         format: 'json',
         list: 'search',
-        srsearch: `intitle:${question} VIH OR SIDA`,
+        srsearch: `VIH ${question}`,
         srlimit: 1
       }
     });
 
     const searchResults = searchResponse.data.query?.search;
+    
+    if (searchResults && searchResults.length > 0) {
+      const pageId = searchResults[0].pageid;
+      const contentResponse = await axios.get('https://fr.wikipedia.org/w/api.php', {
+        params: {
+          action: 'query',
+          format: 'json',
+          prop: 'extracts',
+          pageids: pageId,
+          exintro: true,
+          explaintext: true,
+          exsentences: 3
+        }
+      });
 
-    if (!searchResults || searchResults.length === 0) {
-      return sendError(res, "Je n'ai pas trouvé d'information précise sur ce sujet. Voici ce que je sais sur le VIH : [résumé basique]");
+      const page = contentResponse.data.query.pages[pageId];
+      let extract = page.extract || VIH_KNOWLEDGE['dépistage']; // Fallback
+
+      // Nettoyage de la réponse
+      extract = extract.replace(/\[\d+\]/g, '')
+                      .replace(/\n/g, ' ')
+                      .substring(0, 300);
+
+      return res.json({
+        fulfillmentText: `ℹ️ D'après Wikipédia : ${extract}...\n\n💡 Conseil : Pour une information personnalisée, consultez un professionnel de santé.`
+      });
     }
-
-    const pageId = searchResults[0].pageid;
-    const contentResponse = await axios.get('https://fr.wikipedia.org/w/api.php', {
-      params: {
-        action: 'query',
-        format: 'json',
-        prop: 'extracts',
-        pageids: pageId,
-        exintro: true,
-        explaintext: true,
-        exsentences: 3 // Limite à 3 phrases pour plus de concision
-      }
-    });
-
-    const page = contentResponse.data.query.pages[pageId];
-    let extract = page.extract || "Aucun contenu trouvé.";
-
-    // Amélioration 6 : Nettoyage et formatage
-    extract = cleanWikipediaResponse(extract);
-    
-    const response = {
-      fulfillmentText: formatResponse(question, extract),
-      source: 'Wikipédia'
-    };
-
-    // Mise en cache
-    responseCache.set(question, response);
-    
-    return res.json(response);
 
   } catch (error) {
-    console.error("Erreur API Wikipédia:", error);
-    return sendError(res, "Désolé, je rencontre des difficultés techniques. Vous pouvez essayer de reformuler ou contacter un centre de santé.");
+    console.error("Erreur API :", error);
   }
+
+  // 3. Si tout échoue, utiliser une réponse générique
+  return res.json({
+    fulfillmentText: "Je n'ai pas trouvé de réponse précise à votre question. Voici ce que je sais sur le VIH :\n\n" +
+                    "- Transmission : relations sexuelles non protégées, sang contaminé\n" +
+                    "- Traitement : ARV très efficaces disponibles\n" +
+                    "- Prévention : préservatifs, PrEP, matériel stérile"
+  });
 });
 
-// Fonctions utilitaires améliorées
-function cleanWikipediaResponse(text) {
-  // Supprime les références [1], [2], etc.
-  return text.replace(/\[\d+\]/g, '')
-             .replace(/\n/g, ' ')
-             .trim();
-}
-
-function formatResponse(question, extract) {
-  const responses = {
-    'symptômes': `ℹ️ Symptômes du VIH : ${extract}\n\n⚠️ Si vous pensez avoir été exposé, faites un test de dépistage.`,
-    'traitement': `💊 Traitements du VIH : ${extract}\n\nLes ARV permettent aujourd'hui de vivre normalement avec le VIH.`,
-    'prévention': `🛡️ Prévention du VIH : ${extract}\n\nN'oubliez pas : préservatifs, PrEP et matériel stérile.`
-  };
-
-  // Trouve la réponse la plus pertinente
-  for (const [key, value] of Object.entries(responses)) {
-    if (question.includes(key)) {
-      return value;
-    }
-  }
-
-  // Réponse par défaut
-  return `📌 Selon Wikipédia : ${extract}\n\n(Source fiable mais consultez un professionnel pour des conseils personnels)`;
-}
-
-function sendError(res, message) {
-  return res.json({
-    fulfillmentText: `❌ ${message}`,
-    source: 'Système'
-  });
-}
-
-// Démarrer le serveur
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Serveur opérationnel sur le port ${PORT}`));
+app.listen(3000, () => console.log('✅ Server ready'));
