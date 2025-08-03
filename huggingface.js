@@ -1,5 +1,4 @@
-onst fetch = require('node-fetch');
-c
+const fetch = require('node-fetch');
 const HF_TOKEN = process.env.HF_TOKEN;
 
 async function getHuggingFaceResponse(prompt) {
