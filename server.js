@@ -48,7 +48,7 @@ app.post('/webhook', async (req, res) => {
   // CSU
   if (question.includes('csu') || question.includes('couverture santé') || question.includes('santé universelle')) {
     return res.json({
-      fulfillmentText: 📘 La Couverture Santé Universelle (CSU) permet aux personnes vivant au Cameroun d’accéder à certains soins gratuitement ou à faible coût.\n\n👥 Pour en bénéficier, rends-toi dans un hôpital public avec ta carte d’identité.
+      fulfillmentText: "📘 La Couverture Santé Universelle (CSU) permet aux personnes vivant au Cameroun d’accéder à certains soins gratuitement ou à faible coût.\n\n👥 Pour en bénéficier, rends-toi dans un hôpital public avec ta carte d’identité."
     });
   }
 
@@ -91,7 +91,7 @@ app.post('/webhook', async (req, res) => {
       extract = extract.replace(/\[\d+\]/g, '').replace(/\n/g, ' ').trim().slice(0, 400);
 
       return res.json({
-        fulfillmentText: ℹ Voici ce que j’ai trouvé :\n\n"${extract}"\n\n💡 Pour un accompagnement, consulte un professionnel ou rends-toi dans un hôpital public.
+        fulfillmentText: "ℹ Voici ce que j’ai trouvé :\n\n"${extract}"\n\n💡 Pour un accompagnement, consulte un professionnel ou rends-toi dans un hôpital public."
       });
     }
   } catch (error) {
