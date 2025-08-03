@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const { SummarizerManager } = require('node-summarizer');
 const app = express();
 
 app.use(express.json());
@@ -34,6 +35,61 @@ const VIH_KNOWLEDGE = [
     response: '🌍 Le VIH serait apparu en Afrique centrale (notamment au Cameroun et RDC), transmis à l’homme par des singes. Il s’est ensuite répandu à travers le monde.'
   }
 ];
+// Fonction utilitaire pour récupérer une section pertinente de Wikipédia
+async function getWikiSection(question) {
+  // Recherche de la page liée au VIH et à la question
+  const searchResp = await axios.get('https://fr.wikipedia.org/w/api.php', {
+    params: {
+      action: 'query',
+      format: 'json',
+      list: 'search',
+      srsearch: `VIH ${question}`,
+      srlimit: 1,
+    }
+  });
+  const pageId = searchResp.data.query.search?.[0]?.pageid;
+  if (!pageId) return null;
+
+  // Récupération des sections de la page trouvée
+  const sectionsResp = await axios.get('https://fr.wikipedia.org/w/api.php', {
+    params: {
+      action: 'parse',
+      format: 'json',
+      pageid: pageId,
+      prop: 'sections',
+    }
+  });
+  const sections = sectionsResp.data.parse?.sections || [];
+  // Choix de la section la plus pertinente
+  const keywords = ['symptôme', 'traitement', 'transmission', 'prévention', 'dépistage', 'origine'];
+  let section = sections.find(s => keywords.some(k => question.includes(k) && s.line.toLowerCase().includes(k)));
+  if (!section) section = sections[0]; // sinon la première section
+
+  // Récupération du contenu brut de la section
+  const sectionNumber = section?.index;
+  const contentResp = await axios.get('https://fr.wikipedia.org/w/api.php', {
+    params: {
+      action: 'parse',
+      format: 'json',
+      pageid: pageId,
+      prop: 'text',
+      section: sectionNumber,
+    }
+  });
+  const html = contentResp.data.parse?.text['*'];
+  if (!html) return null;
+  // Suppression du HTML
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return text;
+}
+
+// Fonction résumé local
+async function summarizeText(text) {
+  if (!text || text.length < 100) return text; // Pas assez de texte pour résumer
+  const summarizer = new SummarizerManager(text, 3); // Résumé 3 phrases max
+  const summary = await summarizer.getSummaryByRank();
+  return summary.summary;
+}
 
 app.post('/webhook', async (req, res) => {
   const question = req.body.queryResult?.queryText?.toLowerCase() || '';
@@ -59,39 +115,13 @@ app.post('/webhook', async (req, res) => {
     }
   }
 
-  // Fallback Wikipédia
+  // Fallback Wikipédia amélioré
   try {
-    const searchResponse = await axios.get('https://fr.wikipedia.org/w/api.php', {
-      params: {
-        action: 'query',
-        format: 'json',
-        list: 'search',
-        srsearch: `VIH ${question}`,
-        srlimit: 1
-      }
-    });
-
-    const searchResults = searchResponse.data.query?.search;
-    
-    if (searchResults && searchResults.length > 0) {
-      const pageId = searchResults[0].pageid;
-      const contentResponse = await axios.get('https://fr.wikipedia.org/w/api.php', {
-        params: {
-          action: 'query',
-          format: 'json',
-          prop: 'extracts',
-          pageids: pageId,
-          exintro: true,
-          explaintext: true,
-          exsentences: 3
-        }
-      });
-
-      let extract = contentResponse.data.query.pages[pageId].extract || '';
-      extract = extract.replace(/\[\d+\]/g, '').replace(/\n/g, ' ').trim().slice(0, 400);
-
+    const sectionText = await getWikiSection(question);
+    if (sectionText) {
+      const summary = await summarizeText(sectionText);
       return res.json({
-        fulfillmentText: `ℹ Voici ce que j’ai trouvé :\n\n"${extract}"\n\n💡 Pour un accompagnement, consulte un professionnel ou rends-toi dans un hôpital public.`
+        fulfillmentText: `ℹ Voici ce que j’ai trouvé :\n\n"${summary}"\n\n💡 Pour un accompagnement, consulte un professionnel ou rends-toi dans un hôpital public.`
       });
     }
   } catch (error) {
