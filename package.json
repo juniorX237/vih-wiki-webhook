@@ -1,16 +1,1 @@
-{
-  "name": "vih-wiki-webhook",
-  "version": "1.0.0",
-  "description": "Webhook pour Dialogflow avec Wikipédia",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "axios": "^1.6.0",
-    "express": "^4.19.2"
-  }
-}
+{ "name": "vih-wiki-webhook", "version": "1.0.0", "description": "Webhook pour Dialogflow avec Wikipédia", "main": "server.js", "scripts": { "start": "node server.js" }, "keywords": [], "author": "", "license": "ISC", "dependencies": { "axios": "^1.6.0", "express": "^4.19.2", "node-summarizer": "latest" } }
