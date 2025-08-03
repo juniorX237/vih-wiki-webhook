@@ -66,7 +66,7 @@ app.post('/webhook', async (req, res) => {
         action: 'query',
         format: 'json',
         list: 'search',
-        srsearch: VIH ${question},
+        srsearch: `VIH ${question}`,
         srlimit: 1
       }
     });
@@ -91,11 +91,11 @@ app.post('/webhook', async (req, res) => {
       extract = extract.replace(/\[\d+\]/g, '').replace(/\n/g, ' ').trim().slice(0, 400);
 
       return res.json({
-        fulfillmentText: "ℹ Voici ce que j’ai trouvé :\n\n"${extract}"\n\n💡 Pour un accompagnement, consulte un professionnel ou rends-toi dans un hôpital public."
+        fulfillmentText: `ℹ Voici ce que j’ai trouvé :\n\n"${extract}"\n\n💡 Pour un accompagnement, consulte un professionnel ou rends-toi dans un hôpital public.`
       });
     }
   } catch (error) {
-    console.error('Erreur Wikipedia :', error.message);
+    console.error('Erreur Wikipedia :', error?.message || error);
   }
 
   // Dernier recours
