@@ -223,26 +223,36 @@ async function generateSummary(text) {
 
 // Gestion des requêtes
 app.post('/webhook', async (req, res) => {
-  const query = req.body.queryResult?.queryText?.toLowerCase() || '';
+  const query = req.body.queryResult?.queryText?.toLowerCase()?.trim() || '';
   
-  // 1. Vérification du sujet
+  // 1. Vérifier toutes les réponses prédéfinies en premier
+  const findMatchingResponse = () => {
+    const allResponses = [...KNOWLEDGE_BASE.vih, ...KNOWLEDGE_BASE.csu];
+    return allResponses.find(item => 
+      item.keywords.some(keyword => {
+        // Match exact pour les salutations
+        if (['salut', 'bonjour', 'coucou', 'hello', 'ça va'].includes(keyword)) {
+          return new RegExp(`^(${keyword})([!?.]|$)`).test(query);
+        }
+        // Match plus large pour les autres mots-clés
+        return new RegExp(`\\b${keyword}\\b`, 'i').test(query);
+      })
+    );
+  };
+
+  const matchedResponse = findMatchingResponse();
+  if (matchedResponse) {
+    return res.json({ fulfillmentText: matchedResponse.response });
+  }
+
+  // 2. Vérification thématique seulement si pas de match prédéfini
   if (!query.match(/\b(vih|sida|csu|santé universelle)\b/i)) {
     return res.json({
       fulfillmentText: "🔍 Je suis spécialisé sur le VIH et la CSU. Posez-moi des questions comme :\n\"Comment se transmet le VIH ?\"\n\"Comment bénéficier de la CSU ?\""
     });
   }
 
-  // 2. Réponses prédéfinies
-  const allResponses = [...KNOWLEDGE_BASE.vih, ...KNOWLEDGE_BASE.csu];
-  const matchedResponse = allResponses.find(item => 
-    item.keywords.some(keyword => query.includes(keyword))
-  );
-
-  if (matchedResponse) {
-    return res.json({ fulfillmentText: matchedResponse.response });
-  }
-
-  // 3. Recherche Wikipedia
+  // 3. Recherche Wikipedia si le sujet est valide
   try {
     const wikiText = await getWikiResponse(query);
     if (wikiText) {
@@ -260,7 +270,6 @@ app.post('/webhook', async (req, res) => {
   // 4. Réponse par défaut
   return res.json({ fulfillmentText: DEFAULT_RESPONSE });
 });
-
 // Démarrer le serveur
 app.listen(PORT, () => 
   console.log(`✅ Serveur en écoute sur le port ${PORT}`)
