@@ -1,46 +1,54 @@
-const fetch = require('node-fetch');
-const HF_TOKEN = process.env.HF_TOKEN;
+const OpenAI = require('openai');
 
-async function getHuggingFaceResponse(prompt) {
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
+
+// Initialisation du client compatible OpenAI avec l'endpoint NVIDIA
+const openai = new OpenAI({
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+  apiKey: NVIDIA_API_KEY
+});
+
+// Prompt système spécifique à JFI Express
+const SYSTEM_PROMPT = `
+Tu es l'assistant virtuel de JFI Express / Joe Air Cargo (Akwa, Douala).
+Réponds de façon courtoise, claire et très concise (format WhatsApp/Messenger).
+
+DONNÉES OFFICIELLES :
+- Fret aérien ordinaire (7-10j) : 0,1-0,5kg (4000f), 0,6-1kg (7500f)
+- Colis sensible (15-20j) : 0,1-1kg (9000f)
+- Colis express (2-4j) : 0,1-1kg (11000f)
+- Téléphones : transport temporairement suspendu
+- Adresse Chine : 广州市越秀区环市中路怡东大厦一楼A31 (Joy 18027278910, Cindy 18027278991, Joe 13751709643)
+- Marquage obligatoire : Pays, Ville, Nom, Téléphone du destinataire, nature de la marchandise
+
+Si la question demande une intervention complexe ou si tu ne connais pas la réponse, indique poliment qu'un conseiller humain prend le relais.
+`;
+
+async function getNvidiaResponse(userQuery) {
   try {
-    const API_URL = 'https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta';
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HF_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ inputs: prompt }),
-      timeout: 10000 // 10 secondes max
+    const completion = await openai.chat.completions.create({
+      model: 'meta/llama-3.1-70b-instruct', // Modèle performant disponible sur NVIDIA Build
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userQuery }
+      ],
+      temperature: 0.2,
+      max_tokens: 300
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        `Hugging Face API Error: ${response.status} ${response.statusText}\n` +
-        `Details: ${JSON.stringify(errorData)}`
-      );
+    const botResponse = completion.choices[0]?.message?.content;
+    
+    if (!botResponse) {
+      throw new Error("Réponse vide de l'API NVIDIA");
     }
 
-    const data = await response.json();
-    
-    // Gestion des différents formats de réponse
-    if (Array.isArray(data) && data[0]?.generated_text) {
-      return data[0].generated_text;
-    }
-    if (data.generated_text) {
-      return data.generated_text;
-    }
-    if (data.error) {
-      throw new Error(`Model loading: ${data.error}`);
-    }
-    
-    return JSON.stringify(data);
+    return botResponse;
+
   } catch (error) {
-    console.error('Erreur détaillée:', error.message);
-    throw error; // Propage l'erreur pour un logging complet
+    console.error('Erreur NVIDIA API:', error.message);
+    throw error;
   }
 }
 
-module.exports = { getHuggingFaceResponse };
-module.exports = { getHuggingFaceResponse };
+// Export propre de la fonction
+module.exports = { getNvidiaResponse };
