@@ -1,23 +1,13 @@
 {
   "name": "jfi-express-webhook",
   "version": "1.0.0",
-  "description": "Webhook Dialogflow et API NVIDIA pour JFI Express / Joe Air Cargo",
+  "description": "Webhook Dialogflow pour JFI Express",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node server.js"
   },
-  "keywords": [
-    "jfi-express",
-    "dialogflow",
-    "nvidia-nim",
-    "whatsapp-bot"
-  ],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "openai": "^4.56.0"
+    "express": "^4.19.2"
   }
 }
