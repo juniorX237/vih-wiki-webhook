@@ -27,7 +27,7 @@ Si la question demande une intervention complexe ou si tu ne connais pas la rép
 async function getNvidiaResponse(userQuery) {
   try {
     const completion = await openai.chat.completions.create({
-      model: 'meta/llama-3.1-70b-instruct', // Modèle performant disponible sur NVIDIA Build
+      model: 'openai/gpt-oss-20b', // Modèle performant disponible sur NVIDIA Build
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userQuery }
