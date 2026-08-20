@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { getNvidiaResponse } = require('./nvidiaService'); // Ajustez le nom du fichier si nécessaire
+const { getNvidiaResponse } = require('./huggingface'); // Ajustez le nom du fichier si nécessaire
 
 const app = express(); // <-- C'est cette ligne qui manquait !
 app.use(express.json());
